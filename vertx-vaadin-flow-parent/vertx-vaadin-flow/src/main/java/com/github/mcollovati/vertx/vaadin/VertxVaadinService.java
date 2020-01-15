@@ -101,14 +101,9 @@ public class VertxVaadinService extends VaadinService {
     protected List<RequestHandler> createRequestHandlers()
         throws ServiceException {
         List<RequestHandler> handlers = super.createRequestHandlers();
-        // TODO: removed because of explicit cast to servlet; should be handled at router level?
+        // TODO: removed because of explicit cast to VaadinServletRequest; should be handled at router level?
         handlers.removeIf(FaviconHandler.class::isInstance);
-        handlers.replaceAll(requestHandler -> {
-            if (requestHandler instanceof StreamRequestHandler) {
-                return new VertxStreamRequestHandler();
-            }
-            return requestHandler;
-        });
+        handlers.replaceAll(this::replaceRequestHandlers);
         handlers.add(0, new BootstrapHandler());
         return handlers;
     }
