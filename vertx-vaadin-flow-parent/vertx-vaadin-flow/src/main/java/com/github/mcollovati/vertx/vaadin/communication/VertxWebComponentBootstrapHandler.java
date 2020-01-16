@@ -24,6 +24,7 @@ package com.github.mcollovati.vertx.vaadin.communication;
 
 import com.github.mcollovati.vertx.vaadin.VertxVaadinRequest;
 import com.vaadin.flow.server.VaadinRequest;
+import com.vaadin.flow.server.VaadinResponse;
 import com.vaadin.flow.server.communication.WebComponentBootstrapHandler;
 
 public class VertxWebComponentBootstrapHandler extends WebComponentBootstrapHandler {
@@ -37,6 +38,7 @@ public class VertxWebComponentBootstrapHandler extends WebComponentBootstrapHand
      * @param request Request to the url for.
      * @return Request's url.
      */
+    @Override
     protected String getRequestUrl(VaadinRequest request) {
         return ((VertxVaadinRequest) request).getRequest().absoluteURI();
     }
@@ -45,9 +47,15 @@ public class VertxWebComponentBootstrapHandler extends WebComponentBootstrapHand
      * Returns the service url needed for initialising the UI.
      *
      * @param request Request.
+     * @param response unused but included for override notation
      * @return Service url for the given request.
      */
-    protected String getServiceUrl(VaadinRequest request) {
+    @Override
+    protected String getServiceUrl(VaadinRequest request, VaadinResponse response) {
+        return getServiceUrl(request);
+    }
+
+    private String getServiceUrl(VaadinRequest request) {
         // get service url from 'url' parameter
         String url = request.getParameter(REQ_PARAM_URL);
         // if 'url' parameter was not available, use request url
@@ -55,9 +63,9 @@ public class VertxWebComponentBootstrapHandler extends WebComponentBootstrapHand
             url = getRequestUrl(request);
         }
         return url
-            // +1 is to keep the trailing slash
-            .substring(0, url.indexOf(PATH_PREFIX) + 1)
-            // replace http:// or https:// with // to work with https:// proxies
+                // +1 is to keep the trailing slash
+                .substring(0, url.indexOf(PATH_PREFIX) + 1)
+                // replace http:// or https:// with // to work with https:// proxies
             // which proxies to the same http:// url
             .replaceFirst("^" + ".*://", "//");
     }

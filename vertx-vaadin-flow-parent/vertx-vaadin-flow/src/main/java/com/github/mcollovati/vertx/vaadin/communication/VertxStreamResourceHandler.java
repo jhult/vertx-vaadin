@@ -25,24 +25,26 @@ package com.github.mcollovati.vertx.vaadin.communication;
 import javax.servlet.ServletContext;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.Serializable;
 
-import com.github.mcollovati.vertx.vaadin.VertxVaadinRequest;
+import com.github.mcollovati.vertx.vaadin.VertxVaadinService;
 import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.server.StreamResourceWriter;
 import com.vaadin.flow.server.VaadinRequest;
 import com.vaadin.flow.server.VaadinResponse;
 import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.flow.server.communication.StreamResourceHandler;
 
 /**
  * Handles {@link StreamResource} instances registered in {@link VaadinSession}.
  *
  * Code adapted from the original {@link com.vaadin.flow.server.communication.StreamResourceHandler}
  */
-public class StreamResourceHandler implements Serializable {
+public class VertxStreamResourceHandler extends StreamResourceHandler {
 
     /**
      * Handle sending for a stream resource request.
+     *
+     * Need to keep since {@link StreamResourceHandler#handleRequest} casts the request to {@link com.vaadin.flow.server.VaadinServletRequest}
      *
      * @param session        session for the request
      * @param request        request to handle
@@ -50,6 +52,7 @@ public class StreamResourceHandler implements Serializable {
      * @param streamResource stream resource that handles data writer
      * @throws IOException if an IO error occurred
      */
+    @Override
     public void handleRequest(VaadinSession session, VaadinRequest request,
                               VaadinResponse response, StreamResource streamResource)
         throws IOException {
@@ -57,8 +60,7 @@ public class StreamResourceHandler implements Serializable {
         StreamResourceWriter writer;
         session.lock();
         try {
-
-            ServletContext context = ((VertxVaadinRequest) request).getService().getServletContext();
+            ServletContext context = ((VertxVaadinService)request.getService()).getServletContext();
             response.setContentType(streamResource.getContentTypeResolver()
                 .apply(streamResource, context));
             response.setCacheTime(streamResource.getCacheTime());

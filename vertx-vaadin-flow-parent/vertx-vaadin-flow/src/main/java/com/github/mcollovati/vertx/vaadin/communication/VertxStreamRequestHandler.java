@@ -31,14 +31,13 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.AbstractStreamResource;
-import com.vaadin.flow.server.RequestHandler;
 import com.vaadin.flow.server.StreamReceiver;
 import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.server.VaadinRequest;
 import com.vaadin.flow.server.VaadinResponse;
 import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.flow.server.communication.StreamRequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * @author Vaadin Ltd
  * @since 1.0
  */
-public class VertxStreamRequestHandler implements RequestHandler {
+public class VertxStreamRequestHandler extends StreamRequestHandler {
 
     private static final char PATH_SEPARATOR = '/';
 
@@ -58,8 +57,8 @@ public class VertxStreamRequestHandler implements RequestHandler {
      */
     static final String DYN_RES_PREFIX = "VAADIN/dynamic/resource/";
 
-    private StreamResourceHandler resourceHandler = new StreamResourceHandler();
-    private StreamReceiverHandler receiverHandler = new StreamReceiverHandler();
+    private VertxStreamResourceHandler resourceHandler = new VertxStreamResourceHandler();
+    private VertxStreamReceiverHandler receiverHandler = new VertxStreamReceiverHandler();
 
     @Override
     public boolean handleRequest(VaadinSession session, VaadinRequest request,
@@ -81,10 +80,10 @@ public class VertxStreamRequestHandler implements RequestHandler {
         session.lock();
         try {
             abstractStreamResource = VertxStreamRequestHandler.getPathUri(pathInfo)
-                .flatMap(session.getResourceRegistry()::getResource);
+                    .flatMap(session.getResourceRegistry()::getResource);
             if (!abstractStreamResource.isPresent()) {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND,
-                    "Resource is not found for path=" + pathInfo);
+                        "Resource is not found for path=" + pathInfo);
                 return true;
             }
         } finally {
@@ -95,13 +94,13 @@ public class VertxStreamRequestHandler implements RequestHandler {
             AbstractStreamResource resource = abstractStreamResource.get();
             if (resource instanceof StreamResource) {
                 resourceHandler.handleRequest(session, request, response,
-                    (StreamResource) resource);
+                        (StreamResource) resource);
             } else if (resource instanceof StreamReceiver) {
                 StreamReceiver streamReceiver = (StreamReceiver) resource;
                 String[] parts = parsePath(pathInfo);
 
                 receiverHandler.handleRequest(session, request, response,
-                    streamReceiver, parts[0], parts[1]);
+                        streamReceiver, parts[0], parts[1]);
             } else {
                 getLogger().warn("Received unknown stream resource.");
             }
@@ -124,29 +123,6 @@ public class VertxStreamRequestHandler implements RequestHandler {
         String uppUri = pathInfo.substring(startOfData);
         // [0] UIid, [1] security key, [2] name
         return uppUri.split("/", 3);
-    }
-
-    /**
-     * Generates URI string for a dynamic resource using its {@code id} and
-     * {@code name}. [0] UIid, [1] sec key, [2] name
-     *
-     * @param name file or attribute name to use in path
-     * @param id   unique resource id
-     * @return generated URI string
-     */
-    public static String generateURI(String name, String id) {
-        StringBuilder builder = new StringBuilder(DYN_RES_PREFIX);
-
-        try {
-            builder.append(UI.getCurrent().getUIId()).append(PATH_SEPARATOR);
-            builder.append(id).append(PATH_SEPARATOR);
-            builder.append(
-                URLEncoder.encode(name, StandardCharsets.UTF_8.name()));
-        } catch (UnsupportedEncodingException e) {
-            // UTF8 has to be supported
-            throw new RuntimeException(e);
-        }
-        return builder.toString();
     }
 
     private static Optional<URI> getPathUri(String path) {
@@ -174,6 +150,6 @@ public class VertxStreamRequestHandler implements RequestHandler {
     }
 
     private static Logger getLogger() {
-        return LoggerFactory.getLogger(StreamResourceHandler.class.getName());
+        return LoggerFactory.getLogger(VertxStreamResourceHandler.class.getName());
     }
 }

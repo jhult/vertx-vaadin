@@ -28,7 +28,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.Serializable;
 import java.util.Set;
 
 import com.github.mcollovati.vertx.support.BufferInputStreamAdapter;
@@ -45,6 +44,7 @@ import com.vaadin.flow.server.UploadException;
 import com.vaadin.flow.server.VaadinRequest;
 import com.vaadin.flow.server.VaadinResponse;
 import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.flow.server.communication.StreamReceiverHandler;
 import com.vaadin.flow.server.communication.streaming.StreamingEndEventImpl;
 import com.vaadin.flow.server.communication.streaming.StreamingErrorEventImpl;
 import com.vaadin.flow.server.communication.streaming.StreamingProgressEventImpl;
@@ -64,31 +64,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *
  * Code adapted from the original {@link com.vaadin.flow.server.communication.StreamReceiverHandler}
  */
-public class StreamReceiverHandler implements Serializable {
+public class VertxStreamReceiverHandler extends StreamReceiverHandler {
 
     private static final int MAX_UPLOAD_BUFFER_SIZE = 4 * 1024;
-
-    /* Minimum interval which will be used for streaming progress events. */
-    public static final int DEFAULT_STREAMING_PROGRESS_EVENT_INTERVAL_MS = 500;
-
-    /**
-     * An UploadInterruptedException will be thrown by an ongoing upload if
-     * {@link StreamVariable#isInterrupted()} returns <code>true</code>.
-     *
-     * By checking the exception of an
-     * {@link StreamVariable.StreamingErrorEvent} or {link FailedEvent} against
-     * this class, it is possible to determine if an upload was interrupted by
-     * code or aborted due to any other exception.
-     */
-    public static class UploadInterruptedException extends Exception {
-
-        /**
-         * Constructs an instance of <code>UploadInterruptedException</code>.
-         */
-        public UploadInterruptedException() {
-            super("Upload interrupted by other thread");
-        }
-    }
 
     /**
      * Handle reception of incoming stream from the client.
@@ -102,6 +80,7 @@ public class StreamReceiverHandler implements Serializable {
      *                       receiver id
      * @throws IOException if an IO error occurred
      */
+    @Override
     public void handleRequest(VaadinSession session, VaadinRequest request,
                               VaadinResponse response, StreamReceiver streamReceiver, String uiId,
                               String securityKey) throws IOException {
@@ -204,6 +183,7 @@ public class StreamReceiverHandler implements Serializable {
      * @throws IOException If there is a problem reading the request or writing the
      *                     response
      */
+    @Override
     protected void doHandleXhrFilePost(VaadinSession session,
                                        VaadinRequest request, VaadinResponse response,
                                        StreamReceiver streamReceiver, StateNode owner, long contentLength)
@@ -257,19 +237,6 @@ public class StreamReceiverHandler implements Serializable {
                 session.unlock();
             }
         }
-    }
-
-    /**
-     * To prevent event storming, streaming progress events are sent in this
-     * interval rather than every time the buffer is filled. This fixes #13155.
-     * To adjust this value override the method, and register your own handler
-     * in VaadinService.createRequestHandlers(). The default is 500ms, and
-     * setting it to 0 effectively restores the old behavior.
-     *
-     * @return the minimum interval to be used for streaming progress events
-     */
-    protected int getProgressEventInterval() {
-        return DEFAULT_STREAMING_PROGRESS_EVENT_INTERVAL_MS;
     }
 
     static void tryToCloseStream(OutputStream out) {
@@ -431,20 +398,7 @@ public class StreamReceiverHandler implements Serializable {
         return now;
     }
 
-    /**
-     * The request.getContentLength() is limited to "int" by the Servlet
-     * specification. To support larger file uploads manually evaluate the
-     * Content-Length header which can contain long values.
-     */
-    private long getContentLength(VaadinRequest request) {
-        try {
-            return Long.parseLong(request.getHeader("Content-Length"));
-        } catch (NumberFormatException e) {
-            return -1l;
-        }
-    }
-
     private static Logger getLogger() {
-        return LoggerFactory.getLogger(StreamReceiverHandler.class.getName());
+        return LoggerFactory.getLogger(VertxStreamReceiverHandler.class.getName());
     }
 }
