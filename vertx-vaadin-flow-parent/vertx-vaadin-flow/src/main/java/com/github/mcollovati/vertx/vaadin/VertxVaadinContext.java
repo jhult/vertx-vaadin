@@ -22,20 +22,19 @@
  */
 package com.github.mcollovati.vertx.vaadin;
 
-import java.util.function.Supplier;
-
 import com.vaadin.flow.server.VaadinContext;
 import io.vertx.core.Context;
 import io.vertx.core.Vertx;
 
+import java.util.Enumeration;
+import java.util.function.Supplier;
+
 public class VertxVaadinContext implements VaadinContext {
 
     private transient final Context context;
-    private transient final Vertx vertx;
 
     public VertxVaadinContext(Vertx vertx) {
-        this.vertx = vertx;
-        this.context = vertx.getOrCreateContext();
+        context = vertx.getOrCreateContext();
     }
 
     @Override
@@ -49,13 +48,24 @@ public class VertxVaadinContext implements VaadinContext {
     }
 
     @Override
-    public <T> void setAttribute(T value) {
+    public <T> void setAttribute(Class<T> clazz, T value) {
         assert value != null;
-        context.put(value.getClass().getName(), value);
+        context.put(clazz.getName(), value);
     }
 
     @Override
     public void removeAttribute(Class<?> clazz) {
         context.remove(clazz.getName());
+    }
+
+    @Override
+    public Enumeration<String> getContextParameterNames() {
+        // TODO fix
+        return null;
+    }
+
+    @Override
+    public String getContextParameter(String key) {
+        return context.get(key);
     }
 }

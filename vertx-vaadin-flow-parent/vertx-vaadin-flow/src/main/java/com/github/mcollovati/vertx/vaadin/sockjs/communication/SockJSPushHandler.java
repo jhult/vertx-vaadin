@@ -236,7 +236,7 @@ public class SockJSPushHandler implements Handler<RoutingContext> {
                 session = service.findVaadinSession(vaadinRequest);
                 assert VaadinSession.getCurrent() == session;
             } catch (SessionExpiredException e) {
-                sendNotificationAndDisconnect(socket, VaadinService.createSessionExpiredJSON());
+                sendNotificationAndDisconnect(socket, VaadinService.createSessionExpiredJSON(true));
                 return;
             }
 
@@ -248,7 +248,7 @@ public class SockJSPushHandler implements Handler<RoutingContext> {
 
                 if (ui == null) {
                     sendNotificationAndDisconnect(
-                        socket, VaadinService.createUINotFoundJSON()
+                        socket, VaadinService.createUINotFoundJSON(true)
                     );
                 } else {
                     callback.run(event, ui);
