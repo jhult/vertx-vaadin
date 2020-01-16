@@ -107,7 +107,7 @@ public class VertxVaadinServiceUT {
                 browser, theme));
         } else {
             URL resource = service.getResource(untranslatedUrl, browser, theme);
-            Assert.assertNotNull("Url must not ne null for " + expectedResource, resource);
+            Assert.assertNotNull("Url must not be null for " + expectedResource, resource);
             Assert.assertThat(resource.toExternalForm(), CoreMatchers.allOf(
                 CoreMatchers.startsWith("file:"), CoreMatchers.endsWith(expectedResource)
             ));
