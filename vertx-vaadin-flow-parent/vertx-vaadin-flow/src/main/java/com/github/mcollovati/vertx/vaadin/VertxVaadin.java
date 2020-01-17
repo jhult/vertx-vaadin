@@ -147,10 +147,9 @@ public class VertxVaadin {
         return vertx;
     }
 
-    public final VertxVaadinService vaadinService() {
-        return service;
+    @SuppressWarnings("unchecked")
+    public final <T extends VertxVaadinService> T vaadinService() {
     }
-
     public String serviceName() {
         return config.serviceName().orElseGet(() -> getClass().getName() + ".service");
     }
