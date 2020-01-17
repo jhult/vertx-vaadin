@@ -59,6 +59,14 @@ import io.vertx.core.http.impl.MimeMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import static com.github.mcollovati.vertx.vaadin.VertxVaadin.META_INF_RESOURCES;
+import static com.github.mcollovati.vertx.vaadin.VertxVaadin.SLASH;
+import static com.github.mcollovati.vertx.vaadin.VertxVaadin.WEBJAR;
+import static com.vaadin.flow.server.frontend.FrontendUtils.FRONTEND;
+
 /**
  * Created by marco on 16/07/16.
  */
@@ -68,10 +76,13 @@ public class VertxVaadinService extends VaadinService {
 
     private final transient VertxVaadin vertxVaadin;
     private final ServiceContextUriResolver contextResolver = new ServiceContextUriResolver();
+    private final transient WebJars webJars;
 
     public VertxVaadinService(VertxVaadin vertxVaadin, DeploymentConfiguration deploymentConfiguration) {
         super(deploymentConfiguration);
         this.vertxVaadin = vertxVaadin;
+        logger.trace("Setup WebJar server");
+        webJars = new WebJars(deploymentConfiguration);
     }
 
     public Vertx getVertx() {
@@ -322,4 +333,49 @@ public class VertxVaadinService extends VaadinService {
         return ServletHelper.getCancelingRelativePath(servletPath);
     }
 
+    private static final class WebJars {
+
+        static final String WEBJARS_RESOURCES_PREFIX = META_INF_RESOURCES + "/webjars/";
+        private final Pattern urlPattern;
+
+        private WebJars(DeploymentConfiguration deploymentConfiguration) {
+            String frontendPrefix = deploymentConfiguration
+                    .getNpmFrontendPrefix();
+            if (!frontendPrefix.endsWith(SLASH)) {
+                throw new IllegalArgumentException(
+                        "Frontend prefix must end with a /. Got \"" + frontendPrefix
+                                + "\"");
+            }
+            if (!frontendPrefix
+                    .startsWith(ApplicationConstants.CONTEXT_PROTOCOL_PREFIX)) {
+                throw new IllegalArgumentException(
+                        "Cannot host WebJars for a fronted prefix that isn't relative to 'context://'. Current " + FRONTEND + " prefix: "
+                                + frontendPrefix);
+            }
+
+            String webjarsLocation = SLASH
+                    + frontendPrefix.substring(
+                    ApplicationConstants.CONTEXT_PROTOCOL_PREFIX.length());
+
+            urlPattern = Pattern.compile("^((/\\.)?(/\\.\\.)*)" + webjarsLocation + "(bower_components/)?(?<" + WEBJAR + ">.*)");
+        }
+
+        /**
+         * Gets web jar resource path if it exists.
+         *
+         * @param filePathInContext servlet context path for file
+         * @return an optional web jar resource path, or an empty optional if the
+         * resource is not web jar resource
+         */
+        public Optional<String> getWebJarResourcePath(String filePathInContext) {
+            String webJarPath = null;
+
+            Matcher matcher = urlPattern.matcher(filePathInContext);
+            // If we don't find anything then we don't have the prefix at all.
+            if (matcher.find()) {
+                webJarPath = WEBJARS_RESOURCES_PREFIX + matcher.group(WEBJAR);
+            }
+            return Optional.ofNullable(webJarPath);
+        }
+    }
 }

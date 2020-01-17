@@ -24,11 +24,8 @@ package com.github.mcollovati.vertx.vaadin;
 
 import javax.servlet.ServletContext;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import com.github.mcollovati.vertx.Sync;
 import com.github.mcollovati.vertx.http.HttpReverseProxy;
@@ -38,7 +35,6 @@ import com.github.mcollovati.vertx.vaadin.sockjs.communication.SockJSPushHandler
 import com.github.mcollovati.vertx.web.sstore.ExtendedLocalSessionStore;
 import com.github.mcollovati.vertx.web.sstore.ExtendedSessionStore;
 import com.github.mcollovati.vertx.web.sstore.NearCacheSessionStore;
-import com.vaadin.flow.function.DeploymentConfiguration;
 import com.vaadin.flow.server.DevModeHandler;
 import com.vaadin.flow.server.ServiceException;
 import com.vaadin.flow.server.WrappedSession;
@@ -74,8 +70,11 @@ public class VertxVaadin {
     private final Vertx vertx;
     private final Router router;
     private final ExtendedSessionStore sessionStore;
-    WebJars webJars;
 
+    static final String SLASH = "/";
+    static final String META_INF_RESOURCES = META_INF + SLASH + "resources";
+    static final String WEBJAR = "webjar";
+    static final String FRONTEND = "frontend";
     static {
         String version = "0.0.0";
         Properties properties = new Properties();
@@ -101,8 +100,6 @@ public class VertxVaadin {
             event.getUI().getInternals().setPushConnection(new SockJSPushConnection(event.getUI()))
         );
 
-        logger.trace("Setup WebJar server");
-        this.webJars = new WebJars(service.getDeploymentConfiguration());
         try {
             service.init();
         } catch (Exception ex) {
@@ -337,57 +334,4 @@ public class VertxVaadin {
     public static String getVersion() {
         return VERSION;
     }
-
-    static final class WebJars {
-
-        static final String WEBJARS_RESOURCES_PREFIX = "META-INF/resources/webjars/";
-        private final String webjarsLocation;
-        private final Pattern urlPattern;
-
-        private WebJars(DeploymentConfiguration deploymentConfiguration) {
-            String frontendPrefix = deploymentConfiguration
-                .getDevelopmentFrontendPrefix();
-            if (!frontendPrefix.endsWith("/")) {
-                throw new IllegalArgumentException(
-                    "Frontend prefix must end with a /. Got \"" + frontendPrefix
-                        + "\"");
-            }
-            if (!frontendPrefix
-                .startsWith(ApplicationConstants.CONTEXT_PROTOCOL_PREFIX)) {
-                throw new IllegalArgumentException(
-                    "Cannot host WebJars for a fronted prefix that isn't relative to 'context://'. Current frontend prefix: "
-                        + frontendPrefix);
-            }
-
-            webjarsLocation = "/"
-                + frontendPrefix.substring(
-                ApplicationConstants.CONTEXT_PROTOCOL_PREFIX.length());
-
-
-            urlPattern = Pattern.compile("^((/\\.)?(/\\.\\.)*)" + webjarsLocation + "(bower_components/)?(?<webjar>.*)");
-        }
-
-
-        /**
-         * Gets web jar resource path if it exists.
-         *
-         * @param filePathInContext servlet context path for file
-         * @return an optional web jar resource path, or an empty optional if the
-         * resource is not web jar resource
-         */
-        public Optional<String> getWebJarResourcePath(String filePathInContext) {
-            String webJarPath = null;
-
-            Matcher matcher = urlPattern.matcher(filePathInContext);
-            // If we don't find anything then we don't have the prefix at all.
-            if (matcher.find()) {
-                webJarPath = WEBJARS_RESOURCES_PREFIX + matcher.group("webjar");
-            }
-            return Optional.ofNullable(webJarPath);
-        }
-
-
     }
-
-
-}
