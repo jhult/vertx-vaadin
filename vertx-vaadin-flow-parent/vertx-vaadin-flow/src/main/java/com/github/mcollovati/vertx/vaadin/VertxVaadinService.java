@@ -24,13 +24,19 @@ package com.github.mcollovati.vertx.vaadin;
 
 import javax.servlet.ServletContext;
 import java.io.InputStream;
+import java.lang.reflect.Constructor;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.github.mcollovati.vertx.support.BufferInputStreamAdapter;
+import com.github.mcollovati.vertx.support.StartupContext;
+import com.github.mcollovati.vertx.vaadin.communication.VertxFaviconHandler;
 import com.github.mcollovati.vertx.vaadin.communication.VertxStreamRequestHandler;
 import com.github.mcollovati.vertx.vaadin.communication.VertxWebComponentBootstrapHandler;
 import com.vaadin.flow.function.DeploymentConfiguration;
@@ -38,18 +44,26 @@ import com.vaadin.flow.server.BootstrapHandler;
 import com.vaadin.flow.server.PwaRegistry;
 import com.vaadin.flow.server.RequestHandler;
 import com.vaadin.flow.server.RouteRegistry;
-import com.vaadin.flow.server.ServiceContextUriResolver;
 import com.vaadin.flow.server.ServiceException;
 import com.vaadin.flow.server.ServletHelper;
+import com.vaadin.flow.server.UnsupportedBrowserHandler;
 import com.vaadin.flow.server.VaadinContext;
 import com.vaadin.flow.server.VaadinRequest;
 import com.vaadin.flow.server.VaadinService;
+import com.vaadin.flow.server.VaadinServlet;
+import com.vaadin.flow.server.VaadinServletContext;
+import com.vaadin.flow.server.VaadinServletService;
 import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.server.WebBrowser;
-import com.vaadin.flow.server.communication.FaviconHandler;
+import com.vaadin.flow.server.communication.HeartbeatHandler;
+import com.vaadin.flow.server.communication.PwaHandler;
+import com.vaadin.flow.server.communication.SessionRequestHandler;
 import com.vaadin.flow.server.communication.StreamRequestHandler;
+import com.vaadin.flow.server.communication.UidlRequestHandler;
 import com.vaadin.flow.server.communication.WebComponentBootstrapHandler;
+import com.vaadin.flow.server.communication.WebComponentProvider;
 import com.vaadin.flow.server.startup.ApplicationRouteRegistry;
+import com.vaadin.flow.server.webcomponent.WebComponentConfigurationRegistry;
 import com.vaadin.flow.shared.ApplicationConstants;
 import com.vaadin.flow.theme.AbstractTheme;
 import io.vertx.core.Vertx;
@@ -59,9 +73,6 @@ import io.vertx.core.http.impl.MimeMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import static com.github.mcollovati.vertx.vaadin.VertxVaadin.META_INF_RESOURCES;
 import static com.github.mcollovati.vertx.vaadin.VertxVaadin.SLASH;
 import static com.github.mcollovati.vertx.vaadin.VertxVaadin.WEBJAR;
@@ -70,52 +81,118 @@ import static com.vaadin.flow.server.frontend.FrontendUtils.FRONTEND;
 /**
  * Created by marco on 16/07/16.
  */
-public class VertxVaadinService extends VaadinService {
+public class VertxVaadinService extends VaadinServletService {
 
     private static final Logger logger = LoggerFactory.getLogger(VertxVaadinService.class);
 
-    private final transient VertxVaadin vertxVaadin;
-    private final ServiceContextUriResolver contextResolver = new ServiceContextUriResolver();
+    private final transient StartupContext startupContext;
+    private final transient DeploymentConfiguration deploymentConfiguration;
     private final transient WebJars webJars;
 
-    public VertxVaadinService(VertxVaadin vertxVaadin, DeploymentConfiguration deploymentConfiguration) {
-        super(deploymentConfiguration);
-        this.vertxVaadin = vertxVaadin;
+    protected VertxVaadinService(final StartupContext startupContext, final DeploymentConfiguration deploymentConfiguration) {
+        this.startupContext = Objects.requireNonNull(startupContext);
+        this.deploymentConfiguration =  Objects.requireNonNull(deploymentConfiguration);
+        setDeploymentConfigurationAsClassLoader();
+
         logger.trace("Setup WebJar server");
         webJars = new WebJars(deploymentConfiguration);
     }
 
-    public Vertx getVertx() {
-        return vertxVaadin.vertx();
+    public static VertxVaadinService create(final StartupContext startupContext) {
+        Objects.requireNonNull(startupContext);
+        DeploymentConfiguration deploymentConfiguration = DeploymentConfigurationFactory.createDeploymentConfiguration(VertxVaadinService.class, startupContext.vaadinOptions());
+        return new VertxVaadinService(startupContext, deploymentConfiguration);
     }
 
-    VaadinOptions getVaadinOptions() {
-        return vertxVaadin.config();
+    public void setDeploymentConfigurationAsClassLoader() {
+        final String classLoaderName = getDeploymentConfiguration().getClassLoaderName();
+
+        if (classLoaderName != null) {
+            try {
+                final Class<?> classLoaderClass = getClass().getClassLoader()
+                        .loadClass(classLoaderName);
+                final Constructor<?> c = classLoaderClass
+                        .getConstructor(ClassLoader.class);
+                setClassLoader((ClassLoader) c.newInstance(
+                        new Object[] { getClass().getClassLoader() }));
+            } catch (final Exception e) {
+                throw new RuntimeException(
+                        "Could not find specified class loader: "
+                                + classLoaderName,
+                        e);
+            }
+        }
+
+        if (getClassLoader() == null) {
+            setDefaultClassLoader();
+        }
+    }
+
+    public Vertx getVertx() {
+        return startupContext.vertx();
+    }
+
+    public VaadinServletContext getVaadinServletContext() {
+        return startupContext.vaadinServletContext();
     }
 
     public ServletContext getServletContext() {
-        return vertxVaadin.servletContext();
+        return startupContext.servletContext();
+    }
+
+    @Override
+    public DeploymentConfiguration getDeploymentConfiguration() {
+        return deploymentConfiguration;
+    }
+
+    @Override
+    public VaadinServlet getServlet() {
+        // TODO - does this actually need something?
+        return null;
     }
 
     @Override
     protected RouteRegistry getRouteRegistry() {
-        return ApplicationRouteRegistry.getInstance(vertxVaadin.servletContext());
+        return ApplicationRouteRegistry.getInstance(getServletContext());
     }
 
     @Override
     protected PwaRegistry getPwaRegistry() {
-        return PwaRegistry.getInstance(vertxVaadin.servletContext());
+        return PwaRegistry.getInstance(getServletContext());
     }
 
+    /**
+     * Copied from {@link VaadinService#hasWebComponentConfigurations()}
+     */
+    private boolean hasWebComponentConfigurations() {
+        WebComponentConfigurationRegistry registry = WebComponentConfigurationRegistry.getInstance(this.getContext());
+        return registry.hasConfigurations();
+    }
 
     @Override
-    protected List<RequestHandler> createRequestHandlers()
-        throws ServiceException {
-        List<RequestHandler> handlers = super.createRequestHandlers();
-        // TODO: removed because of explicit cast to VaadinServletRequest; should be handled at router level?
-        handlers.removeIf(FaviconHandler.class::isInstance);
+    protected List<RequestHandler> createRequestHandlers() throws ServiceException {
+        List<RequestHandler> handlers = new ArrayList<>();
+        handlers.add(new SessionRequestHandler());
+        handlers.add(new HeartbeatHandler());
+        handlers.add(new UidlRequestHandler());
+        handlers.add(new UnsupportedBrowserHandler());
+        handlers.add(new StreamRequestHandler());
+        PwaRegistry pwaRegistry = this.getPwaRegistry();
+        if (pwaRegistry != null && pwaRegistry.getPwaConfiguration().isEnabled()) {
+            handlers.add(new PwaHandler(pwaRegistry));
+        }
+
+        if (this.hasWebComponentConfigurations()) {
+            handlers.add(new WebComponentProvider());
+            handlers.add(new WebComponentBootstrapHandler());
+        }
+
+        handlers.add(new VertxFaviconHandler());
+
         handlers.replaceAll(this::replaceRequestHandlers);
+
         handlers.add(0, new BootstrapHandler());
+
         return handlers;
     }
 
@@ -164,33 +241,9 @@ public class VertxVaadinService extends VaadinService {
         return appId;
     }
 
-    // From VaadinServletService
-    @Override
-    protected boolean requestCanCreateSession(VaadinRequest request) {
-        if (isOtherRequest(request)) {
-            /*
-             * I.e URIs that are not RPC calls or static (theme) files.
-             */
-            return true;
-        }
-
-        return false;
-    }
-
-    // From VaadinServletService
-    private boolean isOtherRequest(VaadinRequest request) {
-        return request.getParameter(
-            ApplicationConstants.REQUEST_TYPE_PARAMETER) == null;
-    }
-
     @Override
     public String getServiceName() {
-        return vertxVaadin.serviceName();
-    }
-
-    @Override
-    public void destroy() {
-        super.destroy();
+        return startupContext.vaadinOptions().serviceName().orElseGet(() -> getClass().getName() + ".service");
     }
 
     @Override
@@ -200,6 +253,7 @@ public class VertxVaadinService extends VaadinService {
 
     @Override
     public URL getResource(String url, WebBrowser browser, AbstractTheme theme) {
+        logger.info("url: {}, browser: {}, theme: {}", url, browser, theme);
         return tryGetResource(getThemedOrRawPath(url, browser, theme));
     }
 
@@ -208,21 +262,9 @@ public class VertxVaadinService extends VaadinService {
         return tryGetResourceAsStream(getThemedOrRawPath(url, browser, theme));
     }
 
-    @Override
-    public String resolveResource(String url, WebBrowser browser) {
-        Objects.requireNonNull(url, "Url cannot be null");
-        Objects.requireNonNull(browser, "Browser cannot be null");
-
-        String frontendRootUrl;
-        DeploymentConfiguration config = getDeploymentConfiguration();
-        if (browser.isEs6Supported()) {
-            frontendRootUrl = config.getEs6FrontendPrefix();
-        } else {
-            frontendRootUrl = config.getEs5FrontendPrefix();
-        }
-        return contextResolver.resolveVaadinUri(url, frontendRootUrl);
-    }
-
+    /**
+     * Needs to stay so we call {@link VertxVaadinService#getThemedOrRawPath}
+     */
     @Override
     public Optional<String> getThemedUrl(String url, WebBrowser browser, AbstractTheme theme) {
         if (theme != null
@@ -230,7 +272,6 @@ public class VertxVaadinService extends VaadinService {
             return Optional.of(theme.translateUrl(url));
         }
         return Optional.empty();
-
     }
 
     @Override
@@ -238,16 +279,38 @@ public class VertxVaadinService extends VaadinService {
         return new VertxVaadinContext(getVertx());
     }
 
-
+    /**
+     * Resolves the given {@code url} resource and tries to find a themed or raw
+     * version.
+     * <p>
+     * The themed version is always tried first, with the raw version used as a
+     * fallback.
+     *
+     * @param url
+     *            the untranslated URL to the resource to find
+     * @param browser
+     *            the web browser to resolve for, relevant for es5 vs es6
+     *            resolving
+     * @param theme
+     *            the theme to use for resolving, or <code>null</code> to not
+     *            use a theme
+     * @return the path to the themed resource if such exists, otherwise the
+     *         resolved raw path
+     */
     private String getThemedOrRawPath(String url, WebBrowser browser,
-                                      AbstractTheme theme) {
+                                       AbstractTheme theme) {
         String resourcePath = resolveResource(url, browser);
 
-        return getThemeResourcePath(resourcePath, theme)
-            .filter(p -> Objects.nonNull(tryGetResource(p)))
-            .orElse(resourcePath);
+        Optional<String> themeResourcePath = getThemeResourcePath(resourcePath, theme);
+        if (themeResourcePath.isPresent()) {
+            URL themeResource = tryGetResource(
+                    themeResourcePath.get());
+            if (themeResource != null) {
+                return themeResourcePath.get();
+            }
+        }
+        return resourcePath;
     }
-
 
     private URL tryGetResource(String path) {
         logger.trace("Try to resolve path {}", path);
@@ -257,8 +320,8 @@ public class VertxVaadinService extends VaadinService {
             url = tryResolveFile("/META-INF/resources/" + path);
         }
         if (url == null) {
-            logger.trace("Path {} not found into META-INF/resources/, try with webjars");
-            url = vertxVaadin.webJars.getWebJarResourcePath(path)
+            logger.trace("Path {} not found into META-INF/resources/, try with webjars", path);
+            url = webJars.getWebJarResourcePath(path)
                 .map(this::tryResolveFile).orElse(null);
         }
         return url;
@@ -278,13 +341,28 @@ public class VertxVaadinService extends VaadinService {
         return null;
     }
 
+    /**
+     * Gets the theme specific path for the given resource.
+     *
+     * @param path
+     *            the raw path
+     * @param theme
+     *            the theme to use for resolving, possibly <code>null</code>
+     * @return the path to the themed version or an empty optional if no themed
+     *         version could be determined
+     */
     private Optional<String> getThemeResourcePath(String path,
                                                   AbstractTheme theme) {
-        return Optional.ofNullable(theme)
-            .map(t -> t.translateUrl(path))
-            .filter(p -> !p.equals(path));
-    }
+        if (theme == null) {
+            return Optional.empty();
+        }
+        String themeUrl = theme.translateUrl(path);
+        if (path.equals(themeUrl)) {
+            return Optional.empty();
+        }
 
+        return Optional.of(themeUrl);
+    }
 
     public InputStream tryGetResourceAsStream(String path) {
         logger.trace("Try to resolve path {}", path);
@@ -300,8 +378,8 @@ public class VertxVaadinService extends VaadinService {
                 return is;
             }
         }
-        logger.trace("Path {} not found into META-INF/resources/, try with webjars");
-        return vertxVaadin.webJars.getWebJarResourcePath(path)
+        logger.trace("Path {} not found into META-INF/resources/, try with webjars", path);
+        return webJars.getWebJarResourcePath(path)
             .filter(fileSystem::existsBlocking)
             .map(fileSystem::readFileBlocking)
             .map(BufferInputStreamAdapter::new)
@@ -323,6 +401,7 @@ public class VertxVaadinService extends VaadinService {
      * @param request the request for which the location should be determined
      * @return A relative path to the context root. Never ends with a slash (/).
      */
+    @Override
     public String getContextRootRelativePath(VaadinRequest request) {
         return getCancelingRelativePath("/") + "/";
     }

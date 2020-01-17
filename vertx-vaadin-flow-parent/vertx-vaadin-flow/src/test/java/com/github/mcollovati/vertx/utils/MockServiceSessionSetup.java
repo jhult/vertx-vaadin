@@ -33,6 +33,7 @@ import java.util.function.Function;
 import com.github.mcollovati.vertx.support.StartupContext;
 import com.github.mcollovati.vertx.vaadin.VaadinOptions;
 import com.github.mcollovati.vertx.vaadin.VertxVaadin;
+import com.github.mcollovati.vertx.vaadin.VertxVaadinOverrides;
 import com.github.mcollovati.vertx.vaadin.VertxVaadinService;
 import com.vaadin.flow.function.DeploymentConfiguration;
 import com.vaadin.flow.internal.CurrentInstance;
@@ -82,6 +83,13 @@ public class MockServiceSessionSetup {
     private TestVertxVaadinService service;
     private MockDeploymentConfiguration deploymentConfiguration = new MockDeploymentConfiguration();
 
+    private class TestVertxVaadinOverrides implements VertxVaadinOverrides {
+        @Override
+        public VertxVaadinService createVaadinService(final StartupContext startupContext) {
+            return new TestVertxVaadinService(startupContext, deploymentConfiguration);
+        }
+    }
+
     public MockServiceSessionSetup() throws Exception {
         this(true);
     }
@@ -96,7 +104,9 @@ public class MockServiceSessionSetup {
         Mockito.when(vertx.fileSystem()).thenReturn(fileSystem);
         Mockito.when(vertx.getOrCreateContext()).thenReturn(context);
 
-        vertxVaadin = new TestVertxVaadin(vertx);
+        final StartupContext startupContext = StartupContext.syncOf(vertx, new VaadinOptions());
+        vertxVaadin = new TestVertxVaadin(startupContext);
+        service = vertxVaadin.vaadinService();
 
         deploymentConfiguration.setXsrfProtectionEnabled(false);
         //Mockito.when(servletConfig.getServletContext())
@@ -199,8 +209,8 @@ public class MockServiceSessionSetup {
         private Router router;
         private List<BootstrapListener> bootstrapListeners = new ArrayList<>();
 
-        public TestVertxVaadinService(VertxVaadin vertxVaadin, DeploymentConfiguration deploymentConfiguration) {
-            super(vertxVaadin, deploymentConfiguration);
+        public TestVertxVaadinService(StartupContext startupContext, DeploymentConfiguration deploymentConfiguration) {
+            super(startupContext, deploymentConfiguration);
         }
 
         @Override
@@ -260,14 +270,8 @@ public class MockServiceSessionSetup {
         private Function<String, Boolean> resourceFoundOverride;
         private Function<String, InputStream> resourceAsStreamOverride;
 
-        protected TestVertxVaadin(Vertx vertx) {
-            super(vertx, StartupContext.syncOf(vertx, new VaadinOptions()));
-        }
-
-        @Override
-        protected VertxVaadinService createVaadinService() {
-            service = new TestVertxVaadinService(this, deploymentConfiguration);
-            return service;
+        protected TestVertxVaadin(final StartupContext startupContext) {
+            super(startupContext, new TestVertxVaadinOverrides());
         }
 
         /*
