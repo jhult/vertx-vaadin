@@ -47,15 +47,10 @@ public class VertxWebComponentBootstrapHandler extends WebComponentBootstrapHand
      * Returns the service url needed for initialising the UI.
      *
      * @param request Request.
-     * @param response unused but included for override notation
      * @return Service url for the given request.
      */
     @Override
-    protected String getServiceUrl(VaadinRequest request, VaadinResponse response) {
-        return getServiceUrl(request);
-    }
-
-    private String getServiceUrl(VaadinRequest request) {
+    protected String getServiceUrl(VaadinRequest request) {
         // get service url from 'url' parameter
         String url = request.getParameter(REQ_PARAM_URL);
         // if 'url' parameter was not available, use request url

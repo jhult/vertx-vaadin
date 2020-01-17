@@ -48,6 +48,16 @@ public class VertxVaadinContext implements VaadinContext {
     }
 
     @Override
+    public <T> T getAttribute(Class<T> type) {
+        return null;
+    }
+
+    @Override
+    public <T> void setAttribute(T value) {
+        assert value != null;
+        context.put(value.getClass().getName(), value);
+    }
+
     public <T> void setAttribute(Class<T> clazz, T value) {
         assert value != null;
         context.put(clazz.getName(), value);
@@ -58,13 +68,11 @@ public class VertxVaadinContext implements VaadinContext {
         context.remove(clazz.getName());
     }
 
-    @Override
     public Enumeration<String> getContextParameterNames() {
         // TODO fix
         return null;
     }
 
-    @Override
     public String getContextParameter(String key) {
         return context.get(key);
     }

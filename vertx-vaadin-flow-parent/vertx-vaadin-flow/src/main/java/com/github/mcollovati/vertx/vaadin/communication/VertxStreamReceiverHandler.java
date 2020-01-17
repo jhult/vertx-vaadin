@@ -398,6 +398,19 @@ public class VertxStreamReceiverHandler extends StreamReceiverHandler {
         return now;
     }
 
+    /**
+     * The request.getContentLength() is limited to "int" by the Servlet
+     * specification. To support larger file uploads manually evaluate the
+     * Content-Length header which can contain long values.
+     */
+    private long getContentLength(VaadinRequest request) {
+        try {
+            return Long.parseLong(request.getHeader("Content-Length"));
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
+    }
+
     private static Logger getLogger() {
         return LoggerFactory.getLogger(VertxStreamReceiverHandler.class.getName());
     }
