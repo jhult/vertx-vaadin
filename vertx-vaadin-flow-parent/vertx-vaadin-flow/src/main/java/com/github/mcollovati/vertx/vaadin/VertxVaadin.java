@@ -122,7 +122,7 @@ public class VertxVaadin {
     }
 
     private void configureSessionStore() {
-        final Registration sessionInitListenerReg = this.service.addSessionInitListener(event -> {
+        final Registration sessionInitListenerReg = service.addSessionInitListener(event -> {
             MessageConsumer<String> consumer = sessionExpiredHandler(vertx, msg ->
                 Optional.of(event.getSession().getSession())
                     .filter(session -> msg.body().equals(session.getId()))
@@ -136,7 +136,7 @@ public class VertxVaadin {
             );
 
         });
-        this.service.addServiceDestroyListener(event -> sessionInitListenerReg.remove());
+        service.addServiceDestroyListener(event -> sessionInitListenerReg.remove());
     }
 
     public Router router() {
@@ -253,7 +253,7 @@ public class VertxVaadin {
         return vaadinRouter;
     }
 
-    private void handleVaadinRequest(RoutingContext routingContext) {
+    private void handleVaadinRequest(final RoutingContext routingContext) {
         VertxVaadinRequest request = new VertxVaadinRequest(service, routingContext);
         VertxVaadinResponse response = new VertxVaadinResponse(service, routingContext);
 
@@ -267,7 +267,7 @@ public class VertxVaadin {
         }
     }
 
-    private void initSockJS(Router vaadinRouter, SessionHandler sessionHandler) {
+    private void initSockJS(final Router vaadinRouter, final SessionHandler sessionHandler) {
         SockJSHandlerOptions options = new SockJSHandlerOptions()
             .setSessionTimeout(config().sessionTimeout())
             .setHeartbeatInterval(service.getDeploymentConfiguration().getHeartbeatInterval() * 1000);
@@ -322,11 +322,11 @@ public class VertxVaadin {
         return store;
     }
 
-    private static MessageProducer<String> sessionExpiredProducer(VertxVaadinService vaadinService) {
-        return vaadinService.getVertx().eventBus().sender(VAADIN_SESSION_EXPIRED_ADDRESS);
+    private static MessageProducer<String> sessionExpiredProducer(final VertxVaadinService service) {
+        return service.getVertx().eventBus().sender(VAADIN_SESSION_EXPIRED_ADDRESS);
     }
 
-    public static MessageConsumer<String> sessionExpiredHandler(Vertx vertx, Handler<Message<String>> handler) {
+    public static MessageConsumer<String> sessionExpiredHandler(final Vertx vertx, final Handler<Message<String>> handler) {
         return vertx.eventBus().consumer(VAADIN_SESSION_EXPIRED_ADDRESS, handler);
     }
 
