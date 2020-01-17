@@ -49,6 +49,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.github.mcollovati.vertx.vaadin.VaadinOptions;
+import com.vaadin.flow.server.VaadinServletContext;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.Resource;
 import io.github.classgraph.ScanResult;
@@ -122,6 +123,14 @@ public final class StartupContext {
 
     public VaadinOptions vaadinOptions() {
         return vaadinOptions;
+    }
+
+    public Vertx vertx() {
+        return vertx;
+    }
+
+    public VaadinServletContext vaadinServletContext() {
+        return new VaadinServletContext(servletContext());
     }
 
     public ServletContext servletContext() {
